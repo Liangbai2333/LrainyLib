@@ -1,0 +1,4 @@
+rootProject.name = 'LrainyLib'
+include 'lrainylib-compiler'
+include 'test'
+
