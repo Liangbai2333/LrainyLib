@@ -42,9 +42,7 @@ import java.util.stream.Collectors;
 
 @AutoService(PluginAnnotationProcessor.class)
 @SupportedAnnotationTypes({
-        "site.liangbai.lrainylib.core.annotation.Plugin",
-        "site.liangbai.lrainylib.core.annotation.CommandHandler",
-        "site.liangbai.lrainylib.core.annotation.Plugin$EventSubscriber"
+        "site.liangbai.lrainylib.core.annotation.*"
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 public final class PluginAnnotationProcessor extends AbstractProcessor {
