@@ -32,6 +32,12 @@ public @interface Plugin {
     @Retention(RetentionPolicy.SOURCE)
     @interface EventSubscriber {
     }
+
+    @Target(ElementType.FIELD)
+    @Retention(RetentionPolicy.SOURCE)
+    @interface Instance {
+        String plugin() default "";
+    }
 }
 
 

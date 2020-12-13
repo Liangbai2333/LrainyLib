@@ -20,6 +20,7 @@ import site.liangbai.lrainylib.configuration.ConfigurationSection;
 import site.liangbai.lrainylib.configuration.file.YamlConfiguration;
 import site.liangbai.lrainylib.core.annotation.CommandHandler;
 import site.liangbai.lrainylib.core.annotation.Plugin;
+import site.liangbai.lrainylib.core.annotation.Service;
 import site.liangbai.lrainylib.core.annotation.plugin.Info;
 
 import javax.annotation.processing.*;
@@ -33,6 +34,7 @@ import javax.tools.FileObject;
 import javax.tools.StandardLocation;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.Set;
@@ -127,10 +129,7 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
                         jcClassDecl.defs = jcClassDecl.defs.prepend(methodDecl);
                     }
 
-                    methodDecls.forEach(it -> {
-                        it.body = getRegistryBody(it.body);
-                        System.out.println(it.body);
-                    });
+                    methodDecls.forEach(it -> it.body = getRegistryBody(it.body));
 
                     super.visitClassDef(jcClassDecl);
                 }
@@ -177,8 +176,13 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
                 yaml.set("loadBefore", ImmutableList.copyOf(plugin.loadBefore()));
             }
 
+            initBody.add(String.format("org.bukkit.plugin.Plugin plugin = org.bukkit.plugin.java.JavaPlugin.getPlugin(%s.class);", PluginAnnotationProcessor.this.plugin.sym.className()));
+
+            processPluginInstance(roundEnv);
             processEventSubscriber(roundEnv);
             processCommandHandler(roundEnv);
+            processService(roundEnv);
+            processServiceInstance(roundEnv);
 
             try {
                 writeRegistryClass();
@@ -242,8 +246,6 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
         Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Plugin.EventSubscriber.class);
 
         elements.forEach(element -> {
-            String getClass = String.format("org.bukkit.plugin.java.JavaPlugin.getPlugin(%s.class)", plugin.sym.className());
-
             JCTree jcTree = javacTrees.getTree(element);
 
             jcTree.accept(new TreeTranslator() {
@@ -251,7 +253,7 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
                 public void visitClassDef(JCTree.JCClassDecl jcClassDecl) {
                     String newListener = String.format("new %s()", jcClassDecl.sym.className());
 
-                    initBody.add(String.format("org.bukkit.Bukkit.getPluginManager().registerEvents(%s, %s)", newListener, getClass) + ";");
+                    initBody.add(String.format("org.bukkit.Bukkit.getPluginManager().registerEvents(%s, plugin)", newListener) + ";");
 
                     super.visitClassDef(jcClassDecl);
                 }
@@ -259,6 +261,86 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
 
         });
 
+    }
+
+    private void processService(RoundEnvironment roundEnv) {
+        Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Service.class);
+
+        elements.forEach(element -> {
+            JCTree jcTree = javacTrees.getTree(element);
+
+            jcTree.accept(new TreeTranslator() {
+                @Override
+                public void visitClassDef(JCTree.JCClassDecl jcClassDecl) {
+                    Service service = element.getAnnotation(Service.class);
+                    String cls = jcClassDecl.sym.className();
+                    String body = String.format("org.bukkit.Bukkit.getServicesManager().register(%s.class, new %s(), %s, org.bukkit.plugin.ServicePriority.valueOf(\"%s\"));", cls, cls, "plugin", service.priority());
+
+                    initBody.add(body);
+
+                    super.visitClassDef(jcClassDecl);
+                }
+            });
+        });
+    }
+
+    private void processServiceInstance(RoundEnvironment roundEnv) {
+        Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Service.ServiceProviderInstance.class);
+
+        elements.forEach(element -> {
+            JCTree jcTree = javacTrees.getTree(element);
+
+            jcTree.accept(new TreeTranslator() {
+                @Override
+                public void visitVarDef(JCTree.JCVariableDecl jcVariableDecl) {
+                    if(!jcVariableDecl.mods.getFlags().contains(Modifier.STATIC)) {
+                        throw new IllegalStateException("service instance field must be static.");
+                    }
+
+                    Service.ServiceProviderInstance instance = element.getAnnotation(Service.ServiceProviderInstance.class);
+
+                    String getField = String.format("%s.class.getDeclaredField(\"%s\")", jcVariableDecl.sym.owner.getQualifiedName().toString(), jcVariableDecl.sym.name.toString());
+
+                    String body = String.format(
+                            "invokeFieldAndSet(%s, %s, org.bukkit.Bukkit.getServicesManager().getRegistration(%s.class).getProvider());",
+                            getField,
+                            "null",
+                            instance.classFullName()
+                    );
+
+                    initBody.add(body);
+
+                    super.visitVarDef(jcVariableDecl);
+                }
+            });
+        });
+    }
+
+    private void processPluginInstance(RoundEnvironment roundEnv) {
+        Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Plugin.Instance.class);
+
+        elements.forEach(element -> {
+            JCTree jcTree = javacTrees.getTree(element);
+
+            jcTree.accept(new TreeTranslator() {
+                @Override
+                public void visitVarDef(JCTree.JCVariableDecl jcVariableDecl) {
+                    if(!jcVariableDecl.mods.getFlags().contains(Modifier.STATIC)) {
+                        throw new IllegalStateException("plugin instance field must be static.");
+                    }
+
+                    String getField = String.format("%s.class.getDeclaredField(\"%s\")", jcVariableDecl.sym.owner.getQualifiedName().toString(), jcVariableDecl.sym.name.toString());
+
+                    Plugin.Instance instance = element.getAnnotation(Plugin.Instance.class);
+
+                    String get = isEmpty(instance.plugin()) ? "plugin" : String.format("org.bukkit.Bukkit.getPluginManager().getPlugin(\"%s\")", instance.plugin());
+
+                    initBody.add(String.format("invokeFieldAndSet(%s, %s, %s);", getField, "null", get));
+
+                    super.visitVarDef(jcVariableDecl);
+                }
+            });
+        });
     }
 
     private String genToken() {
@@ -291,8 +373,43 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
                         MethodSpec.methodBuilder("init")
                                 .addModifiers(Modifier.PUBLIC)
                                 .addModifiers(Modifier.STATIC)
-                                .addCode(bodyBuilder.toString())
-                                .build())
+                                .addCode(
+                                        "try {\n" + bodyBuilder.toString() +
+                                                "            \n" +
+                                                "        } catch (Throwable e) {\n" +
+                                                "            e.printStackTrace();\n" +
+                                                "        }"
+                                        )
+                                .build()
+                )
+                .addMethod(
+                        MethodSpec.methodBuilder("invokeFieldAndSet")
+                                .addModifiers(Modifier.PUBLIC)
+                                .addModifiers(Modifier.STATIC)
+                                .addParameter(Field.class, "field", Modifier.FINAL)
+                                .addParameter(Object.class, "obj", Modifier.FINAL)
+                                .addParameter(Object.class, "value", Modifier.FINAL)
+                                .addCode(
+                                        "boolean old = field.isAccessible();\n" +
+                                                "\n" +
+                                                "        if (!old) {\n" +
+                                                "            field.setAccessible(true);\n" +
+                                                "        }\n" +
+                                                "\n" +
+                                                "        try {\n" +
+                                                "            java.lang.reflect.Field modifiersField = java.lang.reflect.Field.class.getDeclaredField(\"modifiers\");\n" +
+                                                "            modifiersField.setAccessible(true);\n" +
+                                                "            modifiersField.setInt(field, field.getModifiers() & ~java.lang.reflect.Modifier.FINAL);\n" +
+                                                "\n" +
+                                                "            field.set(obj, value);\n" +
+                                                "        } catch (Throwable e) {\n" +
+                                                "            e.printStackTrace();\n" +
+                                                "        } finally {\n" +
+                                                "            field.setAccessible(old);\n" +
+                                                "        }"
+                                )
+                                .build()
+                )
                 .build()
         ).build();
 

@@ -7,8 +7,4 @@ version '1.0'
 
 repositories {
     mavenCentral()
-
-    maven {
-        url 'http://lss233.littleservice.cn/repositories/minecraft/'
-    }
 }

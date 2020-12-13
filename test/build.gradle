@@ -9,7 +9,7 @@ repositories {
     mavenCentral()
 
     maven {
-        url 'http://lss233.littleservice.cn/repositories/minecraft/'
+        url 'https://crystal.app.lss233.com/repositories/minecraft'
     }
 }
 

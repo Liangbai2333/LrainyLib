@@ -3,7 +3,7 @@ plugins {
 }
 
 group 'site.liangbai'
-version '0.1 Alpha'
+version '0.2'
 archivesBaseName = "${rootProject.name}"
 
 def jdkHome = System.getenv("JAVA_HOME")
@@ -12,7 +12,7 @@ repositories {
     mavenCentral()
 
     maven {
-        url 'http://lss233.littleservice.cn/repositories/minecraft/'
+        url 'https://crystal.app.lss233.com/repositories/minecraft'
     }
 }
 
