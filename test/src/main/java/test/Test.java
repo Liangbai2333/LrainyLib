@@ -2,10 +2,10 @@ package test;
 
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
-import site.liangbai.lrainylib.core.annotation.CommandHandler;
-import site.liangbai.lrainylib.core.annotation.Plugin;
-import site.liangbai.lrainylib.core.annotation.Service;
-import site.liangbai.lrainylib.core.annotation.plugin.Info;
+import site.liangbai.lrainylib.annotation.CommandHandler;
+import site.liangbai.lrainylib.annotation.Plugin;
+import site.liangbai.lrainylib.annotation.Service;
+import site.liangbai.lrainylib.annotation.plugin.Info;
 
 @Plugin(
         info = @Info(name = "Test", version = "1.0.0", authors = "Liangbai"),

@@ -18,10 +18,10 @@ import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
 import site.liangbai.lrainylib.configuration.ConfigurationSection;
 import site.liangbai.lrainylib.configuration.file.YamlConfiguration;
-import site.liangbai.lrainylib.core.annotation.CommandHandler;
-import site.liangbai.lrainylib.core.annotation.Plugin;
-import site.liangbai.lrainylib.core.annotation.Service;
-import site.liangbai.lrainylib.core.annotation.plugin.Info;
+import site.liangbai.lrainylib.annotation.CommandHandler;
+import site.liangbai.lrainylib.annotation.Plugin;
+import site.liangbai.lrainylib.annotation.Service;
+import site.liangbai.lrainylib.annotation.plugin.Info;
 
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
@@ -40,9 +40,9 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@AutoService(PluginAnnotationProcessor.class)
+@AutoService(Processor.class)
 @SupportedAnnotationTypes({
-        "site.liangbai.lrainylib.core.annotation.*"
+        "site.liangbai.lrainylib.annotation.*"
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 public final class PluginAnnotationProcessor extends AbstractProcessor {

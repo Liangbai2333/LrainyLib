@@ -3,8 +3,8 @@ package test;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.server.PluginEnableEvent;
-import site.liangbai.lrainylib.core.annotation.Plugin;
-import site.liangbai.lrainylib.core.annotation.Service;
+import site.liangbai.lrainylib.annotation.Plugin;
+import site.liangbai.lrainylib.annotation.Service;
 
 @Plugin.EventSubscriber
 public class Test2 implements Listener {
