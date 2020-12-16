@@ -2,4 +2,6 @@ rootProject.name = 'LrainyLib'
 include 'lrainylib-compiler'
 include 'test'
 include 'lrainylib-annotations'
+include 'lrainylib-gradle-plugin'
+include 'lrainylib-core'
 

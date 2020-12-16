@@ -4,7 +4,7 @@ plugins {
 
 group 'site.liangbai'
 version '0.2'
-archivesBaseName = "${rootProject.name}"
+archivesBaseName = "${rootProject.name}-compiler"
 
 def jdkHome = System.getenv("JAVA_HOME")
 
