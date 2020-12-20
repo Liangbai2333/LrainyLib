@@ -1,4 +1,4 @@
-package site.liangbai.lrainylib.annotation;
+package site.liangbai.lrainylib.annotation.command;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

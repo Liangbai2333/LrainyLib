@@ -16,12 +16,14 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
-import site.liangbai.lrainylib.configuration.ConfigurationSection;
-import site.liangbai.lrainylib.configuration.file.YamlConfiguration;
-import site.liangbai.lrainylib.annotation.CommandHandler;
 import site.liangbai.lrainylib.annotation.Plugin;
-import site.liangbai.lrainylib.annotation.Service;
 import site.liangbai.lrainylib.annotation.plugin.Info;
+import site.liangbai.lrainylib.configuration.file.YamlConfiguration;
+import site.liangbai.lrainylib.javac.processor.subprocessor.ISubProcessor;
+import site.liangbai.lrainylib.javac.processor.subprocessor.impl.CommandHandlerProcessor;
+import site.liangbai.lrainylib.javac.processor.subprocessor.impl.EventSubscriberProcessor;
+import site.liangbai.lrainylib.javac.processor.subprocessor.impl.PluginInstanceProcessor;
+import site.liangbai.lrainylib.javac.processor.util.ProcessorType;
 
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
@@ -36,6 +38,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -55,9 +58,21 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
     private final String token = genToken();
     private Element element;
 
-    private final java.util.List<String> initBody = new ArrayList<>();
+    private final ArrayList<String> initBody = new ArrayList<>();
 
     private final YamlConfiguration yaml = new YamlConfiguration();
+
+    private static final HashMap<ProcessorType, ISubProcessor> processors = new HashMap<>();
+
+    static {
+        initProcessor();
+    }
+
+    private static void initProcessor() {
+        registerProcessor(ProcessorType.PROCESSOR_PLUGIN_INSTANCE, new PluginInstanceProcessor());
+        registerProcessor(ProcessorType.PROCESSOR_COMMAND_HANDLER, new CommandHandlerProcessor());
+        registerProcessor(ProcessorType.PROCESSOR_EVENT_SUBSCRIBER, new EventSubscriberProcessor());
+    }
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
@@ -176,11 +191,7 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
 
             initBody.add(String.format("org.bukkit.plugin.Plugin plugin = org.bukkit.plugin.java.JavaPlugin.getPlugin(%s.class);", PluginAnnotationProcessor.this.plugin.sym.className()));
 
-            processPluginInstance(roundEnv);
-            processEventSubscriber(roundEnv);
-            processCommandHandler(roundEnv);
-            processService(roundEnv);
-            processServiceInstance(roundEnv);
+            commitSubProcessors(roundEnv);
 
             try {
                 writeRegistryClass();
@@ -195,150 +206,10 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
         return true;
     }
 
-    private void processCommandHandler(RoundEnvironment roundEnv) {
-        Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(CommandHandler.class);
-
-        elements.forEach(element -> {
-            JCTree jcTree = javacTrees.getTree(element);
-            CommandHandler commandHandler = element.getAnnotation(CommandHandler.class);
-
-            if (isEmpty(commandHandler.value())) {
-                throw new IllegalStateException("command name can not be empty.");
-            }
-            ConfigurationSection section = new YamlConfiguration();
-
-            section.set("description", commandHandler.description());
-
-            if (!isEmpty(commandHandler.usage())) {
-                section.set("usage", commandHandler.usage());
-            }
-
-            if (!isEmpty(commandHandler.aliases())) {
-                section.set("aliases", ImmutableList.copyOf(commandHandler.aliases()));
-            }
-
-            if (!isEmpty(commandHandler.permission())) {
-                section.set("permission", commandHandler.permission());
-            }
-
-            if (!isEmpty(commandHandler.permissionMessage())) {
-                section.set("permission-message", commandHandler.permissionMessage());
-            }
-
-            yaml.set("commands." + commandHandler.value(), section);
-
-            jcTree.accept(new TreeTranslator() {
-                @Override
-                public void visitClassDef(JCTree.JCClassDecl jcClassDecl) {
-                    String newHandler = String.format("new %s()", jcClassDecl.sym.className());
-
-                    initBody.add(String.format("org.bukkit.Bukkit.getPluginCommand(\"%s\").setExecutor(%s)", commandHandler.value(), newHandler) + ";");
-
-                    super.visitClassDef(jcClassDecl);
-                }
-            });
-        });
-    }
-
-    private void processEventSubscriber(RoundEnvironment roundEnv) {
-        Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Plugin.EventSubscriber.class);
-
-        elements.forEach(element -> {
-            JCTree jcTree = javacTrees.getTree(element);
-
-            jcTree.accept(new TreeTranslator() {
-                @Override
-                public void visitClassDef(JCTree.JCClassDecl jcClassDecl) {
-                    String newListener = String.format("new %s()", jcClassDecl.sym.className());
-
-                    initBody.add(String.format("org.bukkit.Bukkit.getPluginManager().registerEvents(%s, plugin)", newListener) + ";");
-
-                    super.visitClassDef(jcClassDecl);
-                }
-            });
-
-        });
-
-    }
-
-    private void processService(RoundEnvironment roundEnv) {
-        Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Service.class);
-
-        elements.forEach(element -> {
-            JCTree jcTree = javacTrees.getTree(element);
-
-            jcTree.accept(new TreeTranslator() {
-                @Override
-                public void visitClassDef(JCTree.JCClassDecl jcClassDecl) {
-                    Service service = element.getAnnotation(Service.class);
-                    String cls = jcClassDecl.sym.className();
-                    String body = String.format("org.bukkit.Bukkit.getServicesManager().register(%s.class, new %s(), %s, org.bukkit.plugin.ServicePriority.valueOf(\"%s\"));", cls, cls, "plugin", service.priority());
-
-                    initBody.add(body);
-
-                    super.visitClassDef(jcClassDecl);
-                }
-            });
-        });
-    }
-
-    private void processServiceInstance(RoundEnvironment roundEnv) {
-        Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Service.ServiceProviderInstance.class);
-
-        elements.forEach(element -> {
-            JCTree jcTree = javacTrees.getTree(element);
-
-            jcTree.accept(new TreeTranslator() {
-                @Override
-                public void visitVarDef(JCTree.JCVariableDecl jcVariableDecl) {
-                    if(!jcVariableDecl.mods.getFlags().contains(Modifier.STATIC)) {
-                        throw new IllegalStateException("service instance field must be static.");
-                    }
-
-                    Service.ServiceProviderInstance instance = element.getAnnotation(Service.ServiceProviderInstance.class);
-
-                    String getField = String.format("%s.class.getDeclaredField(\"%s\")", jcVariableDecl.sym.owner.getQualifiedName().toString(), jcVariableDecl.sym.name.toString());
-
-                    String body = String.format(
-                            "invokeFieldAndSet(%s, %s, org.bukkit.Bukkit.getServicesManager().getRegistration(%s.class).getProvider());",
-                            getField,
-                            "null",
-                            instance.classFullName()
-                    );
-
-                    initBody.add(body);
-
-                    super.visitVarDef(jcVariableDecl);
-                }
-            });
-        });
-    }
-
-    private void processPluginInstance(RoundEnvironment roundEnv) {
-        Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Plugin.Instance.class);
-
-        elements.forEach(element -> {
-            JCTree jcTree = javacTrees.getTree(element);
-
-            jcTree.accept(new TreeTranslator() {
-                @Override
-                public void visitVarDef(JCTree.JCVariableDecl jcVariableDecl) {
-                    if(!jcVariableDecl.mods.getFlags().contains(Modifier.STATIC)) {
-                        throw new IllegalStateException("plugin instance field must be static.");
-                    }
-
-                    String getField = String.format("%s.class.getDeclaredField(\"%s\")", jcVariableDecl.sym.owner.getQualifiedName().toString(), jcVariableDecl.sym.name.toString());
-
-                    Plugin.Instance instance = element.getAnnotation(Plugin.Instance.class);
-
-                    String get = isEmpty(instance.plugin()) ? "plugin" : String.format("org.bukkit.Bukkit.getPluginManager().getPlugin(\"%s\")", instance.plugin());
-
-                    initBody.add(String.format("invokeFieldAndSet(%s, %s, %s);", getField, "null", get));
-
-                    super.visitVarDef(jcVariableDecl);
-                }
-            });
-        });
+    private void commitSubProcessors(RoundEnvironment roundEnv) {
+        commitSubProcessor(ProcessorType.PROCESSOR_PLUGIN_INSTANCE, roundEnv);
+        commitSubProcessor(ProcessorType.PROCESSOR_EVENT_SUBSCRIBER, roundEnv);
+        commitSubProcessor(ProcessorType.PROCESSOR_COMMAND_HANDLER, roundEnv);
     }
 
     private String genToken() {
@@ -365,7 +236,7 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
 
         initBody.forEach(it -> bodyBuilder.append(it).append("\n"));
 
-        JavaFile cls = JavaFile.builder(packageName, TypeSpec.classBuilder(className)
+        TypeSpec.Builder builder = TypeSpec.classBuilder(className)
                 .addModifiers(Modifier.PUBLIC)
                 .addMethod(
                         MethodSpec.methodBuilder("init")
@@ -377,41 +248,53 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
                                                 "        } catch (Throwable e) {\n" +
                                                 "            e.printStackTrace();\n" +
                                                 "        }"
-                                        )
-                                .build()
-                )
-                .addMethod(
-                        MethodSpec.methodBuilder("invokeFieldAndSet")
-                                .addModifiers(Modifier.PUBLIC)
-                                .addModifiers(Modifier.STATIC)
-                                .addParameter(Field.class, "field", Modifier.FINAL)
-                                .addParameter(Object.class, "obj", Modifier.FINAL)
-                                .addParameter(Object.class, "value", Modifier.FINAL)
-                                .addCode(
-                                        "boolean old = field.isAccessible();\n" +
-                                                "\n" +
-                                                "        if (!old) {\n" +
-                                                "            field.setAccessible(true);\n" +
-                                                "        }\n" +
-                                                "\n" +
-                                                "        try {\n" +
-                                                "            java.lang.reflect.Field modifiersField = java.lang.reflect.Field.class.getDeclaredField(\"modifiers\");\n" +
-                                                "            modifiersField.setAccessible(true);\n" +
-                                                "            modifiersField.setInt(field, field.getModifiers() & ~java.lang.reflect.Modifier.FINAL);\n" +
-                                                "\n" +
-                                                "            field.set(obj, value);\n" +
-                                                "        } catch (Throwable e) {\n" +
-                                                "            e.printStackTrace();\n" +
-                                                "        } finally {\n" +
-                                                "            field.setAccessible(old);\n" +
-                                                "        }"
                                 )
                                 .build()
-                )
-                .build()
+                );
+
+        if (initBodyContains("invokeFieldAndSet")) {
+            builder.addMethod(
+                    MethodSpec.methodBuilder("invokeFieldAndSet")
+                            .addModifiers(Modifier.PUBLIC)
+                            .addModifiers(Modifier.STATIC)
+                            .addParameter(Field.class, "field", Modifier.FINAL)
+                            .addParameter(Object.class, "obj", Modifier.FINAL)
+                            .addParameter(Object.class, "value", Modifier.FINAL)
+                            .addCode(
+                                    "boolean old = field.isAccessible();\n" +
+                                            "\n" +
+                                            "        if (!old) {\n" +
+                                            "            field.setAccessible(true);\n" +
+                                            "        }\n" +
+                                            "\n" +
+                                            "        try {\n" +
+                                            "            java.lang.reflect.Field modifiersField = java.lang.reflect.Field.class.getDeclaredField(\"modifiers\");\n" +
+                                            "            modifiersField.setAccessible(true);\n" +
+                                            "            modifiersField.setInt(field, field.getModifiers() & ~java.lang.reflect.Modifier.FINAL);\n" +
+                                            "\n" +
+                                            "            field.set(obj, value);\n" +
+                                            "        } catch (Throwable e) {\n" +
+                                            "            e.printStackTrace();\n" +
+                                            "        } finally {\n" +
+                                            "            field.setAccessible(old);\n" +
+                                            "        }"
+                            )
+                            .build()
+            );
+        }
+
+        JavaFile cls = JavaFile.builder(packageName, builder.build()
         ).build();
 
         cls.writeTo(filer);
+    }
+
+    private boolean initBodyContains(String str) {
+        for (String s : initBody) {
+            if (s.contains(str)) return true;
+        }
+
+        return false;
     }
 
     private JCTree.JCBlock getRegistryBody(JCTree.JCBlock other) {
@@ -463,5 +346,29 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
 
     private boolean isEmpty(Object[] objects) {
         return objects != null && (objects.length < 1 || objects[0].equals(""));
+    }
+
+    private void commitSubProcessor(ProcessorType type, RoundEnvironment roundEnv) {
+        if (!checkSubProcessor(type)) return;
+
+        processors.get(type).process(
+                elements,
+                treeMaker,
+                javacTrees,
+                names,
+                filer,
+                plugin,
+                token,
+                element,
+                initBody,
+                yaml,
+                roundEnv
+        );
+    }
+
+    private boolean checkSubProcessor(ProcessorType type) { return processors.containsKey(type); }
+
+    public static void registerProcessor(ProcessorType type, ISubProcessor processor) {
+        processors.put(type, processor);
     }
 }

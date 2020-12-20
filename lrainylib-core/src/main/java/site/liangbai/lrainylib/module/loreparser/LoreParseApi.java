@@ -41,7 +41,9 @@ public final class LoreParseApi {
         for (String s : lore) {
             Pair<String, String> pair = parseKeyValue(s);
 
-            list.add(pair);
+            if (pair != null) {
+                list.add(pair);
+            }
         }
 
         return list;
