@@ -1,0 +1,15 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.4.21'
+}
+
+group 'site.liangbai'
+version '0.1'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation gradleApi()
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+}

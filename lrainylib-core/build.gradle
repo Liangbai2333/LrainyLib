@@ -1,0 +1,20 @@
+plugins {
+    id 'java'
+}
+
+group 'site.liangbai'
+version '1.0'
+archivesBaseName = "${rootProject.name}"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+}
+
+test {
+    useJUnitPlatform()
+}
