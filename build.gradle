@@ -1,0 +1,10 @@
+plugins {
+    id 'java'
+}
+
+group 'site.liangbai'
+version '1.0'
+
+repositories {
+    mavenCentral()
+}
