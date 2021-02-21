@@ -4,11 +4,7 @@ plugins {
 }
 
 group 'site.liangbai'
-<<<<<<< HEAD
 version '0.3.6'
-=======
-version '0.2'
->>>>>>> 7c9a1a62a64f01965c10258912c0a66aa07a79bb
 archivesBaseName = "${rootProject.name}-compiler"
 
 def jdkHome = System.getenv("JAVA_HOME")

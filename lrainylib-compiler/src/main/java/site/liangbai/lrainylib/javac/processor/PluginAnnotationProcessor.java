@@ -18,10 +18,7 @@ import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
 import site.liangbai.lrainylib.annotation.Plugin;
 import site.liangbai.lrainylib.annotation.plugin.Info;
-<<<<<<< HEAD
 import site.liangbai.lrainylib.annotation.plugin.Permission;
-=======
->>>>>>> 7c9a1a62a64f01965c10258912c0a66aa07a79bb
 import site.liangbai.lrainylib.configuration.file.YamlConfiguration;
 import site.liangbai.lrainylib.javac.processor.subprocessor.ISubProcessor;
 import site.liangbai.lrainylib.javac.processor.subprocessor.impl.CommandHandlerProcessor;
@@ -41,14 +38,7 @@ import javax.tools.StandardLocation;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.lang.reflect.Field;
-<<<<<<< HEAD
 import java.util.*;
-=======
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Random;
-import java.util.Set;
->>>>>>> 7c9a1a62a64f01965c10258912c0a66aa07a79bb
 import java.util.stream.Collectors;
 
 @AutoService(Processor.class)
@@ -190,7 +180,6 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
             }
 
             if (!isEmpty(plugin.softDepend())) {
-<<<<<<< HEAD
                 yaml.set("softdepend", ImmutableList.copyOf(plugin.softDepend()));
             }
 
@@ -217,16 +206,8 @@ public final class PluginAnnotationProcessor extends AbstractProcessor {
 
                         yaml.options().pathSeparator('.');
                     });
-
-=======
-                yaml.set("softDepend", ImmutableList.copyOf(plugin.softDepend()));
             }
-
-            if (!isEmpty(plugin.loadBefore())) {
-                yaml.set("loadBefore", ImmutableList.copyOf(plugin.loadBefore()));
-            }
-
->>>>>>> 7c9a1a62a64f01965c10258912c0a66aa07a79bb
+			
             initBody.add(String.format("org.bukkit.plugin.Plugin plugin = org.bukkit.plugin.java.JavaPlugin.getPlugin(%s.class);", PluginAnnotationProcessor.this.plugin.sym.className()));
 
             commitSubProcessors(roundEnv);
